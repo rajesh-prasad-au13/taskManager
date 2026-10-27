@@ -60,6 +60,7 @@ import {
 // ============================================================================
 
 export type Priority = 'High' | 'Medium' | 'Low';
+const PRIORITY_ORDER: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
 
 export interface ProjectCategory {
   id: string;
@@ -2265,10 +2266,16 @@ function MonthView({
           const customNote = daySum?.customNote;
 
           // Filter allocations if project filter is active
-          const visibleAllocations = (daySum?.allocations || []).filter((a) => {
-            if (selectedProject === 'ALL') return true;
-            return taskMap[a.taskId]?.project === selectedProject;
-          });
+          const visibleAllocations = (daySum?.allocations || [])
+            .filter((allocation) => {
+              if (selectedProject === 'ALL') return true;
+              return taskMap[allocation.taskId]?.project === selectedProject;
+            })
+            .sort(
+              (a, b) =>
+                PRIORITY_ORDER[taskMap[a.taskId]?.priority ?? 'Low'] -
+                PRIORITY_ORDER[taskMap[b.taskId]?.priority ?? 'Low'],
+            );
 
           // Check if any task active on this working day has unscheduled hours
           const unscheduledTasksOnDay = tasks.filter(
@@ -2492,10 +2499,16 @@ function WeekView({
         const remaining = daySum?.remainingHours ?? 0;
         const isOverloaded = daySum?.isOverloaded ?? false;
 
-        const visibleAllocations = (daySum?.allocations || []).filter((a) => {
-          if (selectedProject === 'ALL') return true;
-          return taskMap[a.taskId]?.project === selectedProject;
-        });
+        const visibleAllocations = (daySum?.allocations || [])
+          .filter((allocation) => {
+            if (selectedProject === 'ALL') return true;
+            return taskMap[allocation.taskId]?.project === selectedProject;
+          })
+          .sort(
+            (a, b) =>
+              PRIORITY_ORDER[taskMap[a.taskId]?.priority ?? 'Low'] -
+              PRIORITY_ORDER[taskMap[b.taskId]?.priority ?? 'Low'],
+          );
 
         return (
           <div
@@ -2741,9 +2754,9 @@ function DayView({
   const isOverloaded = daySum?.isOverloaded ?? false;
   const hasCustomOverride = Boolean(availability.customDates[iso]);
 
-  const activeTasksCoveringDay = tasks.filter(
-    (t) => iso >= t.startDate && iso <= t.endDate
-  );
+  const activeTasksCoveringDay = tasks
+    .filter((task) => iso >= task.startDate && iso <= task.endDate)
+    .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
 
   const presets = [
     { label: 'Normal (8h)', hours: 8, note: 'Normal workday' },
