@@ -540,6 +540,9 @@ export function runScheduler(
     if (t.endDate && t.endDate > maxDate) maxDate = t.endDate;
   }
 
+  const expandableCapacity =
+    sortedTasks.reduce((total, task) => total + task.requiredHours, 0) +
+    Object.values(manualOverrides).reduce((total, hours) => total + Math.max(0, hours), 0);
   const daySummaries: Record<string, DayScheduleSummary> = {};
   const freeCapacity: Record<string, number> = {};
 
@@ -556,7 +559,8 @@ export function runScheduler(
       isOverloaded: false,
       allocations: [],
     };
-    freeCapacity[d] = info.availableHours;
+    freeCapacity[d] =
+      info.isWorkingDay && info.availableHours > 0 ? expandableCapacity : 0;
   };
 
   getDateRangeISO(minDate, maxDate).forEach(ensureDateInitialized);
@@ -611,7 +615,12 @@ export function runScheduler(
           daySummaries[d].totalScheduledHours =
             Math.round((daySummaries[d].totalScheduledHours + rawManualVal) * 100) / 100;
           freeCapacity[d] = Math.max(0, Math.round(((freeCapacity[d] || 0) - rawManualVal) * 100) / 100);
-          daySummaries[d].remainingHours = freeCapacity[d];
+          daySummaries[d].remainingHours = Math.max(
+            0,
+            Math.round(
+              (daySummaries[d].availableHours - daySummaries[d].totalScheduledHours) * 100,
+            ) / 100,
+          );
           if (daySummaries[d].totalScheduledHours > daySummaries[d].availableHours + 1e-5) {
             daySummaries[d].isOverloaded = true;
           }
@@ -659,7 +668,12 @@ export function runScheduler(
         daySummaries[d].totalScheduledHours =
           Math.round((daySummaries[d].totalScheduledHours + hrs) * 100) / 100;
         freeCapacity[d] = Math.max(0, Math.round(((freeCapacity[d] || 0) - hrs) * 100) / 100);
-        daySummaries[d].remainingHours = freeCapacity[d];
+        daySummaries[d].remainingHours = Math.max(
+          0,
+          Math.round(
+            (daySummaries[d].availableHours - daySummaries[d].totalScheduledHours) * 100,
+          ) / 100,
+        );
         if (daySummaries[d].totalScheduledHours > daySummaries[d].availableHours + 1e-5) {
           daySummaries[d].isOverloaded = true;
         }
@@ -804,7 +818,7 @@ export function runSchedulerUnitTests(): UnitTestResult[] {
     });
   }
 
-  // Test 3: Overlapping Tasks & Water-Filling Around Bottleneck Day
+  // Test 3: Positive custom availability can expand to meet the task deadline
   {
     const tasks: Task[] = [
       {
@@ -840,17 +854,23 @@ export function runSchedulerUnitTests(): UnitTestResult[] {
     const d1 = s.allocationsByDate['2026-11-02']?.allocatedHours || 0;
     const d2 = s.allocationsByDate['2026-11-03']?.allocatedHours || 0;
     const d3 = s.allocationsByDate['2026-11-04']?.allocatedHours || 0;
-    const passed = d1 === 7 && d2 === 2 && d3 === 7 && s.unscheduledHours === 0;
+    const passed =
+      Math.abs(d1 - 5.25) <= 0.25 &&
+      Math.abs(d2 - 5.25) <= 0.25 &&
+      Math.abs(d3 - 5.5) <= 0.25 &&
+      res.daySummaries['2026-11-03'].availableHours === 2 &&
+      res.daySummaries['2026-11-03'].isOverloaded &&
+      s.unscheduledHours === 0;
     results.push({
       id: 'test-3',
-      name: 'Water-Filling Around Reduced Capacity Day',
-      scenario: 'When Nov 3 only has 2h available, a 16h task across Nov 2–4 allocates 7h, 2h, 7h.',
+      name: 'Automatic Capacity Expansion on Reduced-Capacity Days',
+      scenario: 'A positive 2h custom day can expand as needed so a 16h task fits evenly across Nov 2–4.',
       passed,
-      details: `Nov 2: ${d1}h, Nov 3 (cap 2h): ${d2}h, Nov 4: ${d3}h`,
+      details: `Nov 2: ${d1}h, Nov 3: ${d2}h scheduled / ${res.daySummaries['2026-11-03'].availableHours}h baseline, Nov 4: ${d3}h`,
     });
   }
 
-  // Test 4: Insufficient Capacity Detection & Suggested End Date
+  // Test 4: Automatic capacity expansion meets a tight deadline
   {
     const tasks: Task[] = [
       {
@@ -860,22 +880,25 @@ export function runSchedulerUnitTests(): UnitTestResult[] {
         priority: 'High',
         requiredHours: 22,
         startDate: '2026-11-02',
-        endDate: '2026-11-03', // Only 16h available across 2 days
+        endDate: '2026-11-03',
         createdAt: '2026-11-01T00:00:00Z',
       },
     ];
     const res = runScheduler(tasks, baseSettings);
     const s = res.taskSummaries['t-over'];
     const passed =
-      s.scheduledHours === 16 &&
-      s.unscheduledHours === 6 &&
-      s.suggestedEndDate === '2026-11-04';
+      s.scheduledHours === 22 &&
+      s.unscheduledHours === 0 &&
+      res.daySummaries['2026-11-02'].availableHours === 8 &&
+      res.daySummaries['2026-11-03'].availableHours === 8 &&
+      res.daySummaries['2026-11-02'].isOverloaded &&
+      res.daySummaries['2026-11-03'].isOverloaded;
     results.push({
       id: 'test-4',
-      name: 'Insufficient Capacity & Suggested End Date',
-      scenario: '22h task in a 2-day (16h) window schedules 16h, flags 6h unscheduled, and suggests Nov 4.',
+      name: 'Capacity Expansion to Meet a Tight Deadline',
+      scenario: 'A 22h task within a 2-day deadline expands both workdays to fit without unscheduled hours.',
       passed,
-      details: `Scheduled: ${s.scheduledHours}h, Unscheduled: ${s.unscheduledHours}h, Suggested End: ${s.suggestedEndDate}`,
+      details: `Scheduled: ${s.scheduledHours}h, Unscheduled: ${s.unscheduledHours}h, Nov 2–3 baseline: ${res.daySummaries['2026-11-02'].availableHours}h / ${res.daySummaries['2026-11-03'].availableHours}h`,
     });
   }
 
@@ -906,13 +929,19 @@ export function runSchedulerUnitTests(): UnitTestResult[] {
     const res = runScheduler(tasks, baseSettings);
     const firstAlloc = res.taskSummaries['t-first'].scheduledHours;
     const secondAlloc = res.taskSummaries['t-second'].scheduledHours;
-    const passed = firstAlloc === 6 && secondAlloc === 2;
+    const available = res.daySummaries['2026-11-02'].availableHours;
+    const passed =
+      firstAlloc === 6 &&
+      secondAlloc === 6 &&
+      available === 8 &&
+      res.daySummaries['2026-11-02'].isOverloaded &&
+      res.taskSummaries['t-second'].unscheduledHours === 0;
     results.push({
       id: 'test-5',
-      name: 'Deterministic Tie-Breaking (Same Start Date)',
-      scenario: 'Two 6h tasks on Nov 2 (8h cap): earlier createdAt gets full 6h, second gets remaining 2h.',
+      name: 'Shared-Day Capacity Expands for Overlapping Tasks',
+      scenario: 'Two 6h tasks on one workday both fit, expanding daily capacity from 8h to 12h.',
       passed,
-      details: `First Task: ${firstAlloc}h scheduled, Second Task: ${secondAlloc}h scheduled (4h unscheduled)`,
+      details: `First Task: ${firstAlloc}h, Second Task: ${secondAlloc}h, baseline: ${available}h`,
     });
   }
 
@@ -2258,13 +2287,18 @@ function MonthView({
               key={iso}
               onClick={() => onSelectDate(iso)}
               onDoubleClick={() => onSwitchToDayView(iso)}
+              title={
+                isOverloaded
+                  ? `Over capacity: ${formatHours(scheduled)}h scheduled of ${formatHours(available)}h available (${formatHours(scheduled - available)}h over)`
+                  : `${formatHours(scheduled)}h scheduled of ${formatHours(available)}h available`
+              }
               className={`min-h-[132px] sm:min-h-[148px] p-2 flex flex-col justify-between transition-colors cursor-pointer group relative ${
                 !isCurrentMonth
                   ? 'bg-slate-50/60 text-slate-400'
                   : available === 0
                   ? 'bg-slate-50/40'
                   : 'bg-white hover:bg-slate-50/50'
-              }`}
+              } ${isOverloaded ? 'z-10 ring-2 ring-inset ring-rose-500' : ''}`}
             >
               {/* Top Row: Date Number & Capacity Pill */}
               <div>
@@ -2304,7 +2338,7 @@ function MonthView({
                           : 'text-slate-400 border-transparent'
                       }`}
                     >
-                      {formatHours(scheduled)} / {formatHours(available)}h
+                      {formatHours(scheduled)}/{formatHours(available)}h
                     </span>
                   ) : (
                     <span className="text-[10px] text-slate-300 font-medium">Off</span>
@@ -2464,7 +2498,17 @@ function WeekView({
         });
 
         return (
-          <div key={iso} className="flex flex-col min-h-[460px] bg-white">
+          <div
+            key={iso}
+            title={
+              isOverloaded
+                ? `Over capacity: ${formatHours(scheduled)}h scheduled of ${formatHours(available)}h available (${formatHours(scheduled - available)}h over)`
+                : `${formatHours(scheduled)}h scheduled of ${formatHours(available)}h available`
+            }
+            className={`flex flex-col min-h-[460px] bg-white ${
+              isOverloaded ? 'relative z-10 ring-2 ring-inset ring-rose-500' : ''
+            }`}
+          >
             {/* Day Column Header */}
             <div
               onClick={() => onSelectDate(iso)}
@@ -2501,7 +2545,7 @@ function WeekView({
                         : 'text-slate-700'
                     }`}
                   >
-                    {formatHours(scheduled)} / {formatHours(available)}h
+                    {formatHours(scheduled)}/{formatHours(available)}h
                   </div>
                   <div className="text-[11px] text-slate-500">
                     {available > 0 ? `${formatHours(remaining)}h free` : 'Non-working'}
@@ -4089,7 +4133,7 @@ function AvailabilitySettingsModal({
               Working Hours & Availability Settings
             </h3>
             <p className="text-xs text-slate-500">
-              Configure default daily capacity, working days, and specific date overrides
+              Set baseline hours and working days. The scheduler increases capacity on eligible workdays when deadlines require it.
             </p>
           </div>
           <button
@@ -4105,7 +4149,7 @@ function AvailabilitySettingsModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Default Hours per Working Day
+                Baseline Hours per Working Day
               </label>
               <input
                 type="number"
@@ -4116,6 +4160,9 @@ function AvailabilitySettingsModal({
                 onChange={(e) => setDefaultHours(e.target.value)}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"
               />
+              <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                This is a baseline, not a hard cap. Capacity can increase on eligible workdays to fit task hours within their deadlines.
+              </p>
             </div>
 
             <div>

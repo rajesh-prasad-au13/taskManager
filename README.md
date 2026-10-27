@@ -2,7 +2,12 @@
 
 WorkloadFlow is a project workload planner for scheduling tasks against daily
 availability. Tasks and availability settings are saved in the browser's local
-storage.
+storage. Configured daily hours are a baseline: the scheduler automatically
+expands capacity on eligible workdays when needed to fit task hours within their
+deadlines. Weekends, non-working days, and zero-hour overrides remain unavailable
+to automatic scheduling. Calendar capacity labels continue to show scheduled
+hours against the configured baseline (for example, `10/9h`); days that exceed
+that baseline are highlighted in red.
 
 On first use, create a local username and password. The password is stored as a
 salted PBKDF2 hash, and the signed-in state lasts for the current browser tab.
