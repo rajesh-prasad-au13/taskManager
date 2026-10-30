@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "exportedAt": "2026-10-27T20:18:26.136Z",
+  "data": {
+    "tasks": [
+      {
+        "id": "task-1",
+        "title": "TDC redesign print 3 & 4",
+        "project": "TDC DK Redesign",
+        "priority": "Medium",
+        "requiredHours": 50,
+        "startDate": "2026-11-02",
+        "endDate": "2026-11-26",
+        "createdAt": "2026-11-01T08:00:00Z"
+      },
+      {
+        "id": "task-7",
+        "title": "ECIP Customer Consent Microservice",
+        "project": "TDC ECIP",
+        "priority": "Low",
+        "requiredHours": 117,
+        "startDate": "2026-11-09",
+        "endDate": "2026-11-30",
+        "createdAt": "2026-11-01T11:00:00Z"
+      },
+      {
+        "id": "task-8",
+        "title": "YS 29980",
+        "project": "YouSee SW",
+        "priority": "High",
+        "requiredHours": 36,
+        "startDate": "2026-11-02",
+        "endDate": "2026-11-06",
+        "createdAt": "2026-11-01T11:30:00Z"
+      },
+      {
+        "title": "YS & TDC dk incidents",
+        "project": "Incidents",
+        "priority": "Low",
+        "requiredHours": 10,
+        "startDate": "2026-11-02",
+        "endDate": "2026-11-30",
+        "id": "task-1793130460360",
+        "createdAt": "2026-10-27T19:47:40.360Z"
+      }
+    ],
+    "availability": {
+      "defaultHoursPerDay": 9,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "referenceToday": "2026-11-02",
+      "enforceReferenceToday": false,
+      "customDates": {
+        "2026-12-11": {
+          "availableHours": 4,
+          "note": "Team off-site afternoon"
+        },
+        "2026-12-24": {
+          "availableHours": 0,
+          "note": "Christmas Eve (Holiday)"
+        },
+        "2026-12-25": {
+          "availableHours": 0,
+          "note": "Christmas Day (Holiday)"
+        },
+        "2026-12-31": {
+          "availableHours": 4,
+          "note": "New Year Eve Half-day"
+        }
+      }
+    },
+    "categories": [
+      {
+        "id": "cat-1",
+        "name": "TDC DK Redesign",
+        "color": "blue"
+      },
+      {
+        "id": "cat-2",
+        "name": "TDC ECIP",
+        "color": "violet"
+      },
+      {
+        "id": "cat-3",
+        "name": "YouSee SW",
+        "color": "emerald"
+      },
+      {
+        "id": "cat-4",
+        "name": "TDC DK SW",
+        "color": "amber"
+      },
+      {
+        "id": "cat-5",
+        "name": "Incidents",
+        "color": "rose"
+      }
+    ],
+    "manualOverrides": {
+      "task-1__2026-11-02": 2.75,
+      "task-1793130460360__2026-11-03": 0.25
+    }
+  }
+}
